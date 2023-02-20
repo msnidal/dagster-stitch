@@ -11,7 +11,7 @@ from utils import (
     DATA_SOURCE_ID,
     STREAM_ID,
     DATA_SOURCE_NAME,
-    STREAM_NAME
+    STREAM_NAME,
 )
 
 

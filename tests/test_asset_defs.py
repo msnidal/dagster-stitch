@@ -5,7 +5,15 @@ from dagster import AssetKey, materialize_to_memory
 from dagster_stitch.asset_defs import build_stitch_assets
 from dagster_stitch import stitch_resource
 
-from utils import DATA_SOURCE_ID, DATA_SOURCE_NAME, API_KEY, ACCOUNT_ID, STREAM_ID, STREAM_NAME, mock_sync_requests
+from utils import (
+    DATA_SOURCE_ID,
+    DATA_SOURCE_NAME,
+    API_KEY,
+    ACCOUNT_ID,
+    STREAM_ID,
+    STREAM_NAME,
+    mock_sync_requests,
+)
 
 
 def test_stitch_asset_keys():

@@ -77,6 +77,7 @@ def test_get_replication_job_retries(max_retries: int, actual_retries: int):
         with pytest.raises(Failure):
             _mock_response()
 
+
 def test_get_sources():
     """Test the get_sources method works as expected.
     We use this to get some relevant metadata, in particular the data source string name for asset keys.
@@ -97,7 +98,9 @@ def test_get_sources():
         sources = resource.list_all_sources()
         assert len(sources) == 1, "Expected only one data source"
         assert DATA_SOURCE_ID in sources, "Data source ID not found in list of sources"
-        assert sources[DATA_SOURCE_ID]["name"] == DATA_SOURCE_NAME, "Data source name not found in list of sources"
+        assert (
+            sources[DATA_SOURCE_ID]["name"] == DATA_SOURCE_NAME
+        ), "Data source name not found in list of sources"
 
 
 def test_list_streams():

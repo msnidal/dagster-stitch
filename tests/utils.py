@@ -88,19 +88,17 @@ def get_sources_response():
                 "image_version": "2.latest",
                 "product": "pipeline",
                 "repository": "bingo/bongo",
-                "start_date": "2022-02-19T00:00:00Z"
+                "start_date": "2022-02-19T00:00:00Z",
             },
             "updated_at": "2023-02-19T19:52:25Z",
             "schedule": {
                 "type": "interval",
                 "unit": "minute",
                 "interval": 60.0,
-                "next_fire_time": "2023-02-19T22:11:48Z"
+                "next_fire_time": "2023-02-19T22:11:48Z",
             },
             "name": DATA_SOURCE_NAME,
-            "mapped_destination_ids": [
-                DESTINATION_ID
-            ],
+            "mapped_destination_ids": [DESTINATION_ID],
             "type": "platform.github",
             "deleted_at": None,
             "system_paused_at": None,
@@ -124,14 +122,11 @@ def get_sources_response():
                                 "property_type": "user_provided",
                                 "system_provided": False,
                                 "clonable": True,
-                                "json_schema": {
-                                    "type": "string",
-                                    "format": "date-time"
-                                },
+                                "json_schema": {"type": "string", "format": "date-time"},
                                 "is_credential": False,
-                                "provided": True
+                                "provided": True,
                             },
-                         ]
+                        ],
                     },
                     {
                         "type": "oauth",
@@ -143,28 +138,17 @@ def get_sources_response():
                                 "property_type": "user_provided",
                                 "system_provided": False,
                                 "clonable": True,
-                                "json_schema": {
-                                    "type": "string"
-                                },
+                                "json_schema": {"type": "string"},
                                 "is_credential": True,
-                                "provided": True
+                                "provided": True,
                             }
-                        ]
+                        ],
                     },
-                    {
-                        "type": "discover_schema",
-                        "properties": []
-                    },
-                    {
-                        "type": "field_selection",
-                        "properties": []
-                    },
-                    {
-                        "type": "fully_configured",
-                        "properties": []
-                    }
-                ]
-            }
+                    {"type": "discover_schema", "properties": []},
+                    {"type": "field_selection", "properties": []},
+                    {"type": "fully_configured", "properties": []},
+                ],
+            },
         }
     ]
 

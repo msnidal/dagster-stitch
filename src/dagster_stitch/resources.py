@@ -297,7 +297,9 @@ class StitchResource:
             ):
                 # TODO: Fix timezone handling (currently assumes UTC)
                 self._log.info(
-                    f"Extraction job for source {data_source_id} completed: {extraction['job_name']}\nCompare {extraction['start_time']} >= {extraction_start}"
+                    f"Extraction job for source {data_source_id} completed:"
+                    f" {extraction['job_name']}\nCompare {extraction['start_time']} >="
+                    f" {extraction_start}"
                 )
                 break
 
@@ -355,7 +357,9 @@ class StitchResource:
                     ):
                         # TODO: Parse ExtractionLogs to determine whether new records are inserted to a load so we know whether to keep waiting
                         self._log.info(
-                            f"Load for stream {streams[stream]['stream_name']} not yet complete: {loads[streams[stream]['stream_name']]['last_batch_loaded_at']} < {load_start}"
+                            f"Load for stream {streams[stream]['stream_name']} not yet complete:"
+                            f" {loads[streams[stream]['stream_name']]['last_batch_loaded_at']} <"
+                            f" {load_start}"
                         )
                         loading_complete = False
 
@@ -367,7 +371,8 @@ class StitchResource:
                 time.sleep(poll_interval)
 
         stream_schemas = {
-            stream_id: self.get_stream_schema(data_source_id, stream_id) | {"name": streams[stream_id]["stream_name"]}
+            stream_id: self.get_stream_schema(data_source_id, stream_id)
+            | {"name": streams[stream_id]["stream_name"]}
             for stream_id in streams.keys()
         }
 
