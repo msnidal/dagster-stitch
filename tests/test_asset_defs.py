@@ -19,9 +19,7 @@ def test_stitch_asset_run():
     resource = stitch_resource.configured({"api_key": API_KEY, "account_id": ACCOUNT_ID})
     tables = [f"{DATA_SOURCE_ID}.{STREAM_NAME}"]
 
-    assets = build_stitch_assets(
-        data_source_id=DATA_SOURCE_ID, destination_tables=tables
-    )
+    assets = build_stitch_assets(data_source_id=DATA_SOURCE_ID, destination_tables=tables)
 
     with responses.RequestsMock() as response_mock:
         mock_sync_requests(response_mock)
