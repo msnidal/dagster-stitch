@@ -12,7 +12,7 @@ readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.7"
 dependencies = [
-    "dagster~=1.1.13",
+    "dagster~=1.1.19",
 ]
 
 [project.optional-dependencies]
