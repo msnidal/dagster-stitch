@@ -47,7 +47,7 @@ class StitchResource:
     def __init__(
         self,
         api_key: str,
-        account_id: str,
+        account_id: int,
         request_max_retries: int = 3,
         default_poll_interval: float = DEFAULT_POLL_INTERVAL,
         default_extraction_timeout: Optional[float] = None,
@@ -110,55 +110,56 @@ class StitchResource:
             f" {self._request_max_retries}"
         )
 
-    def get_data_source(self, data_source_id: str) -> dict:
+    def get_data_source(self, data_source_id: int) -> dict:
         """Get data source metadata
 
         Retrieves data-source-specific metadata applicable to all streams in the data source.
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#retrieve-a-source
 
         Args:
-            data_source_id (str): The ID of the data source to retrieve metadata for.
+            data_source_id (int): The ID of the data source to retrieve metadata for.
 
         Returns:
             Dict[str, Any]: The data source metadata object.
         """
         return self.make_request("GET", f"sources/{data_source_id}")
 
-    def list_all_sources(self) -> list:
+    def list_all_sources(self) -> dict:
         """List all data sources
 
         Lists all data sources associated with the authenticated account.
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-sources
 
         Returns:
-            List[Dict[str, Any]]: A list of data source metadata objects.
+            Dict[str, Dict[int, Any]]: A dictionary mapping data source IDs to data source metadata
         """
-        return self.make_request("GET", "sources")
+        sources = self.make_request("GET", "sources")
+        return {source["id"]: source for source in sources}
 
-    def list_streams(self, data_source_id: str) -> dict:
+    def list_streams(self, data_source_id: int) -> dict:
         """List all streams for a given data source
 
         Streams are the individual tables or collections of data that are extracted from a data source.
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-streams
 
         Args:
-            data_source_id (str): The ID of the data source to list streams for.
+            data_source_id (int): The ID of the data source to list streams for.
 
         Returns:
-            Dict[str, Dict[str, Any]]: A dictionary mapping stream names to stream metadata objects.
+            Dict[str, Dict[int, Any]]: A dictionary mapping stream IDs to stream metadata objects.
         """
         streams = self.make_request("GET", f"sources/{data_source_id}/streams")
-        return {stream["stream_name"]: stream for stream in streams}
+        return {stream["stream_id"]: stream for stream in streams}
 
-    def get_stream_schema(self, data_source_id: str, stream_id: str) -> dict:
+    def get_stream_schema(self, data_source_id: int, stream_id: int) -> dict:
         """Get the schema for a given stream
 
         The schema for a stream is a list of the properties that are extracted from the stream.
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#retrieve-a-streams-schema
 
         Args:
-            data_source_id (str): The ID of the data source that the stream belongs to.
-            stream_id (str): The ID of the stream to get the schema for.
+            data_source_id (int): The ID of the data source that the stream belongs to.
+            stream_id (int): The ID of the stream to get the schema for.
 
         Returns:
             Dict[str, Any]: The stream schema object.
@@ -168,7 +169,6 @@ class StitchResource:
             "schema"
         ]  # TODO some string parsing (jsonparse?) to get the types, just validate with below
         return {
-            "stream_id": stream_id,
             "schema": [
                 property["breadcrumb"][1]
                 for property in schema["metadata"]
@@ -176,7 +176,7 @@ class StitchResource:
             ],
         }
 
-    def list_recent_loads(self, data_source_id: Optional[str] = None) -> dict:
+    def list_recent_loads(self, data_source_name: Optional[str] = None) -> dict:
         """Get the recent loads, optionally filtered by data source
 
         Stitch will return all of the recent loads for any given stream in the account.
@@ -184,12 +184,13 @@ class StitchResource:
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-last-loads-for-account
 
         Args:
-            data_source_id (Optional[str]): The ID of the data source to filter loads by.
+            data_source_id (Optional[int]): The ID of the data source to filter loads by.
 
         Returns:
-            Dict[str, Dict[str, Dict[str, Any]]]: A nested dictionary mapping data source IDs to
+            Dict[str, Dict[str, Dict[str, Any]]]: A nested dictionary mapping data source names to
+                stream names to load metadata objects.
         """
-        loads = self.make_request("GET", f"sources/{self._account_id}/loads")
+        loads = self.make_request("GET", f"{self._account_id}/loads")
 
         # Nested dict of loads by data source then stream name
         all_loads = {}
@@ -199,12 +200,12 @@ class StitchResource:
 
             all_loads[load["source_name"]][load["stream_name"]] = load
 
-        if data_source_id:
-            return all_loads.get(data_source_id, {})
+        if data_source_name:
+            return all_loads.get(data_source_name, {})
         else:
             return all_loads
 
-    def start_replication_job(self, data_source_id: str):
+    def start_replication_job(self, data_source_id: int):
         """Starts a replication job for the given data source, consisting of extract and load
 
         While Stitch considers both stages (extract & load) separately, they are always run together.
@@ -212,7 +213,7 @@ class StitchResource:
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#start-a-job
 
         Args:
-            data_source_id (str): The ID of the data source to start a replication job for.
+            data_source_id (int): The ID of the data source to start a replication job for.
 
         Returns:
             Dict[str, Any]: The response from the Stitch API, containing the job_id for the extract job.
@@ -223,21 +224,22 @@ class StitchResource:
 
         return response
 
-    def get_extractions(self, data_source_id: Optional[str] = None) -> dict:
+    def get_extractions(self, data_source_id: Optional[int] = None) -> dict:
         """Lists all extractions for the account in array, optionally filtered by data source
 
         Maps from Stitch's list of extractions to a dict of extractions keyed by the (unique) data source_id
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-last-extractions
 
         Args:
-            data_source_id (Optional[str]): The ID of the data source to filter extractions by.
+            data_source_id (Optional[int]): The ID of the data source to filter extractions by.
 
         Returns:
             Dict[str, Dict[str, Any]]: A dictionary mapping data source IDs to the extractions for that data source.
         """
-        extractions = self.make_request("GET", f"sources/{self._account_id}/extractions")
+        extractions = self.make_request("GET", f"{self._account_id}/extractions")
         extraction_map = {extractions["source_id"]: extractions for extractions in extractions}
 
+        self._log.info(f"Extractions: {extraction_map}")
         if data_source_id is not None:
             return extraction_map.get(data_source_id, {})
         else:
@@ -245,7 +247,7 @@ class StitchResource:
 
     def start_replication_job_and_poll(
         self,
-        data_source_id: str,
+        data_source_id: int,
         poll_interval: Optional[float] = None,
         extraction_timeout: Optional[float] = None,
         load_timeout: Optional[float] = None,
@@ -257,7 +259,7 @@ class StitchResource:
         either update, raise an error, or time out. This is a blocking call.
 
         Args:
-            data_source_id (str): The ID of the data source to start a replication job for.
+            data_source_id (int): The ID of the data source to start a replication job for.
             poll_interval (Optional[float]): The interval in seconds to poll for job completion.
             extraction_timeout (Optional[float]): The timeout in seconds for the extract stage.
             load_timeout (Optional[float]): The timeout in seconds for the load stage.
@@ -272,6 +274,10 @@ class StitchResource:
 
         # Extraction
         extraction_start = datetime.now()
+        source_metadata = self.get_data_source(data_source_id)
+        if not source_metadata:
+            raise Failure(f"Data source {data_source_id} not found")
+
         replication_response = self.start_replication_job(data_source_id)
 
         while True:
@@ -286,9 +292,13 @@ class StitchResource:
 
             if (
                 extraction["job_name"] == replication_response["job_name"]
-                or extraction["start_time"]
+                or datetime.strptime(extraction["start_time"], STITCH_DATETIME_FORMAT)
                 >= extraction_start  # In case another job completes during polling (unlikely)
             ):
+                # TODO: Fix timezone handling (currently assumes UTC)
+                self._log.info(
+                    f"Extraction job for source {data_source_id} completed: {extraction['job_name']}\nCompare {extraction['start_time']} >= {extraction_start}"
+                )
                 break
 
             if extraction_timeout and datetime.now() - extraction_start > extraction_timeout:
@@ -315,24 +325,26 @@ class StitchResource:
 
         loading_complete = False
         while not loading_complete:
-            loads = self.list_recent_loads(data_source_id)
+            loads = self.list_recent_loads(source_metadata["name"])
             if not loads:
-                raise Failure(f"Load not found for data source {data_source_id}")
+                raise Failure(f"Load not found for data source {source_metadata['name']}")
 
             self._log.info(f"Polled loads for source {data_source_id}")
 
             loading_complete = True
             for stream in streams:
                 if streams[stream]["metadata"]["selected"]:
+                    # TODO: Handle first-time loads waiting for them to show up
                     if streams[stream]["stream_name"] not in loads:
-                        raise Failure(f"Load for stream {streams[stream]['stream_name']} not found")
-
-                    if loads[streams[stream]["stream_name"]]["error_state"]:
+                        # Valid in the case that there is no data
+                        self._log.warning(
+                            f"Load for stream {streams[stream]['stream_name']} not found"
+                        )
+                    elif loads[streams[stream]["stream_name"]]["error_state"]:
                         self._log.warning(
                             f"Load for stream {streams[stream]['stream_name']} failed:"
-                            f" {loads[streams[stream]['stream_name']]['error_state']['message']}"
+                            f" {loads[streams[stream]['stream_name']]['error_state']['notification_data']['message']}"
                         )
-                        # raise Failure(f"Load for stream {stream['stream_name']} failed")
                     elif (
                         loads[streams[stream]["stream_name"]]["last_batch_loaded_at"] is None
                         or datetime.strptime(
@@ -341,6 +353,10 @@ class StitchResource:
                         )
                         < load_start
                     ):
+                        # TODO: Parse ExtractionLogs to determine whether new records are inserted to a load so we know whether to keep waiting
+                        self._log.info(
+                            f"Load for stream {streams[stream]['stream_name']} not yet complete: {loads[streams[stream]['stream_name']]['last_batch_loaded_at']} < {load_start}"
+                        )
                         loading_complete = False
 
             if not loading_complete:
@@ -351,11 +367,11 @@ class StitchResource:
                 time.sleep(poll_interval)
 
         stream_schemas = {
-            stream_name: self.get_stream_schema(data_source_id, stream_name)
-            for stream_name in streams.keys()
+            stream_id: self.get_stream_schema(data_source_id, stream_id) | {"name": streams[stream_id]["stream_name"]}
+            for stream_id in streams.keys()
         }
 
-        return StitchOutput(extraction, loads, stream_schemas)
+        return StitchOutput(source_metadata, extraction, loads, stream_schemas)
 
 
 @resource(
@@ -369,7 +385,7 @@ class StitchResource:
             ),
         ),
         "account_id": Field(
-            StringSource,
+            int,
             is_required=True,
             description=(
                 "Stitch account ID. You can find this in your Stitch account settings page under"

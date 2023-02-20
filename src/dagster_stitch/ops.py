@@ -10,7 +10,7 @@ from dagster_stitch.utils import generate_materializations
     out=Out(StitchOutput, description="The output of the Stitch sync."),
     config_schema={
         "data_source_id": Field(
-            str,
+            int,
             is_required=True,
             description=(
                 "The Stitch data source ID that this op will sync. You can retrieve this value from"

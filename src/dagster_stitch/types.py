@@ -5,6 +5,7 @@ class StitchOutput(
     NamedTuple(
         "_StitchOutput",
         [
+            ("source_metadata", Mapping[str, Any]),
             ("extraction_details", Mapping[str, Any]),
             ("load_details", Mapping[str, Any]),
             ("stream_schema", Mapping[str, Any]),
@@ -17,6 +18,9 @@ class StitchOutput(
     after a sync completes.
 
     Attributes:
+        source_metadata (Dict[str, Any]):
+            The raw Stitch API response containing the metadata of the data source. For more on the schema of this
+            dictionary, see: https://www.stitchdata.com/docs/developers/stitch-connect/api#source--object
         extraction_details (Dict[str, Any]):
             The raw Stitch API response containing the details of the extraction across all streams in the
             data source. General information, not stream-specific: For more on the schema of this dictionary, see:
