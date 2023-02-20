@@ -371,8 +371,10 @@ class StitchResource:
                 time.sleep(poll_interval)
 
         stream_schemas = {
-            stream_id: self.get_stream_schema(data_source_id, stream_id)
-            | {"name": streams[stream_id]["stream_name"]}
+            stream_id: {
+                **self.get_stream_schema(data_source_id, stream_id),
+                **{"name": streams[stream_id]["stream_name"]},
+            }
             for stream_id in streams.keys()
         }
 
