@@ -4,11 +4,13 @@ import responses
 from dagster import op, job, AssetKey
 from dagster_stitch import stitch_resource, replicate_data_source_op, StitchOutput
 
-from constants import (
+from utils import (
     mock_sync_requests,
     ACCOUNT_ID,
     API_KEY,
     DATA_SOURCE_ID,
+    STREAM_ID,
+    DATA_SOURCE_NAME,
     STREAM_NAME,
 )
 
@@ -44,6 +46,6 @@ def test_replicate_data_source_op():
         )
         assert asset_keys == set(
             [
-                AssetKey([f"stitch_{DATA_SOURCE_ID}", STREAM_NAME]),
+                AssetKey([f"stitch_{DATA_SOURCE_NAME}", STREAM_NAME]),
             ]
         )

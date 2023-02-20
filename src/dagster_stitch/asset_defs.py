@@ -9,7 +9,7 @@ from dagster_stitch.utils import generate_materializations
 
 
 def build_stitch_assets(
-    data_source_id: str,
+    data_source_id: int,
     destination_tables: Sequence[str],
     poll_interval: Optional[int] = DEFAULT_POLL_INTERVAL,
     extraction_timeout: Optional[int] = None,
@@ -24,7 +24,7 @@ def build_stitch_assets(
     """Build a set of assets for a given Stitch data source.
 
     Args:
-        data_source_id (str): The Stitch data source ID.
+        data_source_id (int): The Stitch data source ID.
         destination_tables (Sequence[str]): The destination tables to sync.
         poll_interval (Optional[int], optional): The interval to poll the Stitch API for job status.
             Defaults to DEFAULT_POLL_INTERVAL.

@@ -55,9 +55,10 @@ def generate_materializations(
     # extraction_completion_time = stitch_output.extraction_details["completion_time"]
     account_id = stitch_output.extraction_details["stitch_client_id"]
     data_source_id = stitch_output.extraction_details["source_id"]
+    data_source_name = stitch_output.source_metadata["name"]
 
-    for stream_name, stream_properties in stitch_output.stream_schema.items():
-        stream_id = stream_properties["stream_id"]
+    for stream_id, stream_properties in stitch_output.stream_schema.items():
+        stream_name = stream_properties["name"]
 
         stream_url = get_stitch_connector_url(account_id, data_source_id, stream_id)
         # TODO: Asset key prefix diff?
@@ -70,9 +71,9 @@ def generate_materializations(
 
         materialization = AssetMaterialization(
             asset_key=(
-                f"{asset_key_prefix + '_' if asset_key_prefix else ''}{data_source_id}.{stream_name}"
+                f"{asset_key_prefix + '_' if asset_key_prefix else ''}{data_source_name}.{stream_name}"
             ),
-            description=f"Table generated via Stitch sync: {data_source_id}.{stream_name}",
+            description=f"Table generated via Stitch sync: {data_source_name}.{stream_name}",
             metadata=metadata,
         )
         yield materialization
