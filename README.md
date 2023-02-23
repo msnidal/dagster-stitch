@@ -30,7 +30,7 @@ $ pytest
 
 ### Setup
 
-To use the library, you must configure a `stitch` resource in your Dagster instance. The resource requires a `client_id` and `client_secret` to authenticate with Stitch. You can find these values in the Stitch UI under `Settings > API Keys`.
+To use the library, you must configure a `stitch` resource in your Dagster instance. The resource requires an `api_key` to authenticate with Stitch. You can find or generate one in the Stitch UI under `Account Settings > API Access Keys`.
 
 You will also need to note your Stitch account ID and the ID of the data source you want to replicate to be used in the asset or operation configuration. These can be found by navigating to the data source in the Stitch UI and looking at the URL. For example, if the URL is `https://app.stitchdata.com/client/12345/pipeline/v2/sources/67890/summary`, then the account ID is `12345` and the data source ID is `67890`.
 
