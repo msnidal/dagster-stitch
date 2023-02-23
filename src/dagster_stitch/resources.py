@@ -93,9 +93,9 @@ class StitchResource:
                 )
                 response.raise_for_status()
 
-                if 'application/json' not in response.headers.get('Content-Type', ''):
+                if "application/json" not in response.headers.get("Content-Type", ""):
                     return response.text
-                
+
                 response_json = response.json()
                 if type(response_json) is not dict:
                     return response_json
@@ -225,7 +225,10 @@ class StitchResource:
         if "error" in response:
             raise Failure(response["error"])
 
-        self._log.info(f"Started replication job for data source {data_source_id} with job_id {response['job_name']}")
+        self._log.info(
+            f"Started replication job for data source {data_source_id} with job_id"
+            f" {response['job_name']}"
+        )
         return response
 
     def get_extractions(self, data_source_id: Optional[int] = None) -> dict:
@@ -248,7 +251,7 @@ class StitchResource:
             return extraction_map.get(data_source_id, {})
         else:
             return extraction_map
-        
+
     def get_extraction_logs(self, extraction_job_name: str) -> dict:
         """Retrieves logs for an extraction job and parses out relevant information
 
@@ -257,16 +260,19 @@ class StitchResource:
 
         Args:
             extraction_job_name (str): The name of the extraction job to get logs for.
-        
+
         Returns:
             Dict[str, int]: A dictionary mapping stream names to the number of records replicated for that stream.
         """
-        extraction_logs = self.make_request("GET", f"{self._account_id}/extractions/{extraction_job_name}")
-    
+        extraction_logs = self.make_request(
+            "GET", f"{self._account_id}/extractions/{extraction_job_name}"
+        )
+
         replications = {
-            replication.named["stream_name"]: int(replication.named["count_records"]) for replication in parse.findall(
-                "tap - INFO replicated {count_records} records from \"{stream_name}\" endpoint\n",
-                extraction_logs
+            replication.named["stream_name"]: int(replication.named["count_records"])
+            for replication in parse.findall(
+                'tap - INFO replicated {count_records} records from "{stream_name}" endpoint\n',
+                extraction_logs,
             )
         }
         self._log.info(f"Found singer replications: {replications}")
@@ -342,7 +348,10 @@ class StitchResource:
                 )
                 break
 
-            if extraction_timeout and (datetime.utcnow() - extraction_start).total_seconds() > extraction_timeout:
+            if (
+                extraction_timeout
+                and (datetime.utcnow() - extraction_start).total_seconds() > extraction_timeout
+            ):
                 raise Failure(
                     f"Extraction job for source {data_source_id} timed out after"
                     f" {extraction_timeout} seconds"

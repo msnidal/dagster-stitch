@@ -22,7 +22,9 @@ class BearerAuth(requests.auth.AuthBase):
         return r
 
 
-def get_stitch_connector_url(account_id: str, data_source_id: str, stream_id: str = None, stream_name: str = None) -> str:
+def get_stitch_connector_url(
+    account_id: str, data_source_id: str, stream_id: str = None, stream_name: str = None
+) -> str:
     """Get the Stitch connector URL from the environment.
 
     Args:
