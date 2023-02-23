@@ -24,32 +24,53 @@ def mock_sync_requests(response_mock):
         responses.GET,
         f"https://api.stitchdata.com/v4/sources/{DATA_SOURCE_ID}",
         json={"name": DATA_SOURCE_NAME},
+        content_type="application/json",
     )
     response_mock.add(
         responses.POST,
         f"https://api.stitchdata.com/v4/sources/{DATA_SOURCE_ID}/sync",
         json={"job_name": JOB_ID},
+        content_type="application/json",
     )
     response_mock.add(
         responses.GET,
         f"https://api.stitchdata.com/v4/{ACCOUNT_ID}/extractions",
         json=get_extraction_response(),
+        content_type="application/json",
+    )
+    response_mock.add(
+        responses.GET,
+        f"https://api.stitchdata.com/v4/{ACCOUNT_ID}/extractions/{JOB_ID}",
+        body=get_extraction_logs_response(),
+        content_type="application/octet-stream",
     )
     response_mock.add(
         responses.GET,
         f"https://api.stitchdata.com/v4/sources/{DATA_SOURCE_ID}/streams",
         json=get_list_streams_response(),
+        content_type="application/json",
     )
     response_mock.add(
         responses.GET,
         f"https://api.stitchdata.com/v4/{ACCOUNT_ID}/loads",
         json=get_list_loads_response(),
+        content_type="application/json",
     )
     response_mock.add(
         responses.GET,
         f"https://api.stitchdata.com/v4/sources/{DATA_SOURCE_ID}/streams/{STREAM_ID}",
         json=get_stream_schema_response(),
+        content_type="application/json",
     )
+
+
+def get_extraction_logs_response():
+    return f"""
+        2023-02-23 05:14:22,577Z    tap - INFO replicated 2 records from "{DATA_SOURCE_NAME}" endpoint
+        2023-02-23 05:14:22,578Z    tap - INFO Final url is: https://this-is-a-url.com
+        2023-02-23 05:14:22,578Z    tap - WARN Random nonsense log line
+        2023-02-23 05:14:22,578Z target - INFO Serializing batch with 2 messages for table issue_events
+        """
 
 
 def get_extraction_response(failure=False):

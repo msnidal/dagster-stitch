@@ -4,7 +4,7 @@ from typing import Optional
 from urllib.parse import urljoin
 from datetime import datetime
 
-
+import parse
 import requests
 from dagster import get_dagster_logger, resource, Failure, Field, StringSource, __version__
 
@@ -92,8 +92,11 @@ class StitchResource:
                     method, url, headers=headers, auth=self._auth, data=data
                 )
                 response.raise_for_status()
-                response_json = response.json()
 
+                if 'application/json' not in response.headers.get('Content-Type', ''):
+                    return response.text
+                
+                response_json = response.json()
                 if type(response_json) is not dict:
                     return response_json
                 elif "next" in response_json.get("links", {}):
@@ -222,6 +225,7 @@ class StitchResource:
         if "error" in response:
             raise Failure(response["error"])
 
+        self._log.info(f"Started replication job for data source {data_source_id} with job_id {response['job_name']}")
         return response
 
     def get_extractions(self, data_source_id: Optional[int] = None) -> dict:
@@ -244,6 +248,30 @@ class StitchResource:
             return extraction_map.get(data_source_id, {})
         else:
             return extraction_map
+        
+    def get_extraction_logs(self, extraction_job_name: str) -> dict:
+        """Retrieves logs for an extraction job and parses out relevant information
+
+        Parses the logs for the extraction job to find the number of records replicated for each stream
+        See https://www.stitchdata.com/docs/developers/stitch-connect/api#get-logs-for-an-extraction-job
+
+        Args:
+            extraction_job_name (str): The name of the extraction job to get logs for.
+        
+        Returns:
+            Dict[str, int]: A dictionary mapping stream names to the number of records replicated for that stream.
+        """
+        extraction_logs = self.make_request("GET", f"{self._account_id}/extractions/{extraction_job_name}")
+    
+        replications = {
+            replication.named["stream_name"]: int(replication.named["count_records"]) for replication in parse.findall(
+                "tap - INFO replicated {count_records} records from \"{stream_name}\" endpoint\n",
+                extraction_logs
+            )
+        }
+        self._log.info(f"Found singer replications: {replications}")
+
+        return replications
 
     def start_replication_job_and_poll(
         self,
@@ -273,11 +301,11 @@ class StitchResource:
             extraction_timeout = self._default_extraction_timeout
 
         # Extraction
-        extraction_start = datetime.now()
         source_metadata = self.get_data_source(data_source_id)
         if not source_metadata:
             raise Failure(f"Data source {data_source_id} not found")
 
+        extraction_start = datetime.utcnow()
         replication_response = self.start_replication_job(data_source_id)
 
         while True:
@@ -293,9 +321,20 @@ class StitchResource:
             if (
                 extraction["job_name"] == replication_response["job_name"]
                 or datetime.strptime(extraction["start_time"], STITCH_DATETIME_FORMAT)
-                >= extraction_start  # In case another job completes during polling (unlikely)
+                >= extraction_start  # In case another job completes during polling
             ):
-                # TODO: Fix timezone handling (currently assumes UTC)
+                for failure_mode in ("discovery", "tap", "target"):
+                    if not extraction[f"{failure_mode}_exit_status"]:
+                        self._log.info(f"{failure_mode.title()} still in progress")
+                        continue
+
+                    if extraction[f"{failure_mode}_exit_status"] != 0:
+                        raise Failure(
+                            f"{failure_mode.title()} failed with exit status"
+                            f" {extraction[f'{failure_mode}_exit_status']}:"
+                            f" {extraction[f'{failure_mode}_description']}"
+                        )
+
                 self._log.info(
                     f"Extraction job for source {data_source_id} completed:"
                     f" {extraction['job_name']}\nCompare {extraction['start_time']} >="
@@ -303,7 +342,7 @@ class StitchResource:
                 )
                 break
 
-            if extraction_timeout and datetime.now() - extraction_start > extraction_timeout:
+            if extraction_timeout and (datetime.utcnow() - extraction_start).total_seconds() > extraction_timeout:
                 raise Failure(
                     f"Extraction job for source {data_source_id} timed out after"
                     f" {extraction_timeout} seconds"
@@ -311,19 +350,18 @@ class StitchResource:
 
             time.sleep(poll_interval)
 
-        for failure_mode in ("discovery", "tap", "target"):
-            if not extraction[f"{failure_mode}_exit_status"]:
-                continue  # Still in progress
-            if extraction[f"{failure_mode}_exit_status"] != 0:
-                raise Failure(
-                    f"{failure_mode.title()} failed with exit status"
-                    f" {extraction[f'{failure_mode}_exit_status']}:"
-                    f" {extraction[f'{failure_mode}_description']}"
-                )
+        # Parse logs
+        stream_extractions = self.get_extraction_logs(extraction["job_name"])
 
         # Load
         streams = self.list_streams(data_source_id)
-        load_start = datetime.now()
+        load_start = datetime.utcnow()
+
+        expected_loads = {
+            stream: stream_extractions.get(streams[stream]["stream_name"], 0)
+            for stream in streams
+            if streams[stream]["metadata"]["selected"]
+        }
 
         loading_complete = False
         while not loading_complete:
@@ -335,13 +373,12 @@ class StitchResource:
 
             loading_complete = True
             for stream in streams:
-                if streams[stream]["metadata"]["selected"]:
-                    # TODO: Handle first-time loads waiting for them to show up
+                if streams[stream]["metadata"]["selected"] and expected_loads[stream] > 0:
                     if streams[stream]["stream_name"] not in loads:
-                        # Valid in the case that there is no data
                         self._log.warning(
-                            f"Load for stream {streams[stream]['stream_name']} not found"
+                            f"Load for stream {streams[stream]['stream_name']} not yet found"
                         )
+                        loading_complete = False
                     elif loads[streams[stream]["stream_name"]]["error_state"]:
                         self._log.warning(
                             f"Load for stream {streams[stream]['stream_name']} failed:"
@@ -355,7 +392,6 @@ class StitchResource:
                         )
                         < load_start
                     ):
-                        # TODO: Parse ExtractionLogs to determine whether new records are inserted to a load so we know whether to keep waiting
                         self._log.info(
                             f"Load for stream {streams[stream]['stream_name']} not yet complete:"
                             f" {loads[streams[stream]['stream_name']]['last_batch_loaded_at']} <"
@@ -364,7 +400,7 @@ class StitchResource:
                         loading_complete = False
 
             if not loading_complete:
-                if load_timeout and datetime.now() - load_start > load_timeout:
+                if load_timeout and (datetime.utcnow() - load_start).total_seconds() > load_timeout:
                     raise Failure(
                         f"Load for source {data_source_id} timed out after {load_timeout} seconds"
                     )

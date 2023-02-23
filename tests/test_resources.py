@@ -15,6 +15,7 @@ from utils import (
     STREAM_NAME,
     DATA_SOURCE_NAME,
     get_extraction_response,
+    get_extraction_logs_response,
     get_sources_response,
     get_list_loads_response,
     get_list_streams_response,
@@ -178,6 +179,14 @@ def test_start_replication_job_and_poll(failure_stage):
 
         if failure_stage not in ["start", "extract"]:
             # List streams
+            extraction_logs_response = get_extraction_logs_response()
+            response_mock.add(
+                responses.GET,
+                f"https://api.stitchdata.com/v4/{ACCOUNT_ID}/extractions/{JOB_ID}",
+                body=get_extraction_logs_response(),
+                content_type="application/octet-stream",
+            )
+
             list_stream_response = get_list_streams_response()
             response_mock.add(
                 responses.GET,

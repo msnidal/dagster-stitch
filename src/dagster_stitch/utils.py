@@ -22,7 +22,7 @@ class BearerAuth(requests.auth.AuthBase):
         return r
 
 
-def get_stitch_connector_url(account_id: str, data_source_id: str, stream_id: str = None) -> str:
+def get_stitch_connector_url(account_id: str, data_source_id: str, stream_id: str = None, stream_name: str = None) -> str:
     """Get the Stitch connector URL from the environment.
 
     Args:
@@ -36,7 +36,7 @@ def get_stitch_connector_url(account_id: str, data_source_id: str, stream_id: st
     base_url = f"https://app.stitchdata.com/client/{account_id}/pipeline/connections/{data_source_id}/data/"
 
     if stream_id:
-        return f"{base_url}properties/{stream_id}/assignees/"
+        return f"{base_url}properties/{stream_id}/{stream_name}/"
     return base_url
 
 
@@ -60,7 +60,7 @@ def generate_materializations(
     for stream_id, stream_properties in stitch_output.stream_schema.items():
         stream_name = stream_properties["name"]
 
-        stream_url = get_stitch_connector_url(account_id, data_source_id, stream_id)
+        stream_url = get_stitch_connector_url(account_id, data_source_id, stream_id, stream_name)
         # TODO: Asset key prefix diff?
 
         metadata = {"connector_url": MetadataValue.url(stream_url)}
