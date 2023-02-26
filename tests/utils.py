@@ -65,12 +65,10 @@ def mock_sync_requests(response_mock):
 
 
 def get_extraction_logs_response():
-    return f"""
-        2023-02-23 05:14:22,577Z    tap - INFO replicated 2 records from "{DATA_SOURCE_NAME}" endpoint
-        2023-02-23 05:14:22,578Z    tap - INFO Final url is: https://this-is-a-url.com
-        2023-02-23 05:14:22,578Z    tap - WARN Random nonsense log line
-        2023-02-23 05:14:22,578Z target - INFO Serializing batch with 2 messages for table issue_events
-        """
+    return f"""2023-02-23 05:14:22,577Z    tap - INFO replicated 2 records from "{DATA_SOURCE_NAME}" endpoint
+2023-02-23 05:14:22,578Z    tap - INFO Final url is: https://this-is-a-url.com
+2023-02-23 05:14:22,578Z    tap - WARN Random nonsense log line
+2023-02-23 05:14:22,578Z target - INFO Serializing batch with 2 messages for table issue_events"""
 
 
 def get_extraction_response(failure=False):
@@ -215,8 +213,8 @@ def get_list_loads_response(loaded_at: datetime.datetime = None):
 def get_stream_schema_response():
     return {
         "schema": (
-            '{"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type":'
-            ' "string"}}}'
+            '{"type": "object", "properties": {"author": {"type": ["integer"]}, "description":'
+            ' {"type": ["null", "string"]}}}'
         ),
         "metadata": [
             {

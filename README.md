@@ -48,10 +48,15 @@ stitch_instance = stitch_resource.configured(
         "account_id": 12345,
     }
 )
-
 stitch_assets = build_stitch_assets(
     data_source_id=54321,
-    destination_tables=["table_name"],
-    resource_defs={"stitch": stitch_instance},
+    destination_tables=["data_source_name.table_name"]
+)
+
+definitions = Definitions(
+    assets=stitch_assets,
+    resources={"stitch": stitch_instance},
 )
 ```
+
+Note that you should include your data source name prefixed by a point in your `destination_tables` and if the table do not correspond to a materialized asset, the materialization will raise an error.
