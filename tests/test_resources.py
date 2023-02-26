@@ -1,5 +1,3 @@
-import dagster_stitch
-
 import pytest
 import responses
 
@@ -38,7 +36,8 @@ def test_start_replication_job():
             json=json_response,
         )
 
-        assert resource.start_replication_job(DATA_SOURCE_ID) == json_response
+        actual_response, _ = resource.start_replication_job(DATA_SOURCE_ID)
+        assert actual_response == json_response, "Replication job did not produce expected result."
 
 
 @pytest.mark.parametrize("max_retries,actual_retries", [(2, 1), (2, 3), (4, 4)])
@@ -73,7 +72,8 @@ def test_get_replication_job_retries(max_retries: int, actual_retries: int):
             return resource.start_replication_job(DATA_SOURCE_ID)
 
     if actual_retries < max_retries:
-        assert _mock_response() == json_response
+        mock_response, _ = _mock_response()
+        assert mock_response == json_response
     else:
         with pytest.raises(Failure):
             _mock_response()
@@ -144,7 +144,7 @@ def test_get_stream_schema():
         )
 
         stream_schema = resource.get_stream_schema(DATA_SOURCE_ID, STREAM_NAME)
-        assert stream_schema == {"schema": ["author", "description"]}
+        assert stream_schema == {"schema": {"author": "integer", "description": "string"}}
 
 
 @pytest.mark.parametrize("failure_stage", ["start", "extract", None])

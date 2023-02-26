@@ -67,7 +67,7 @@ def replicate_data_source_op(context):
     )
 
     if context.op_config["yield_materializations"]:
-        asset_key_prefix = context.op_config["asset_key_prefix"]
+        asset_key_prefix = [context.op_config["asset_key_prefix"]]
         yield from generate_materializations(sync_request, asset_key_prefix)
 
     # Yield the sync status

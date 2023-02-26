@@ -1,9 +1,7 @@
-from dagster import AssetKey, AssetMaterialization, Output
-from typing import Iterator, Sequence, Optional, Mapping, Any, Dict
+from dagster import AssetKey, AssetMaterialization
+from typing import Iterator, Sequence
 
-import dagster._check as check
 from dagster import AssetMaterialization, MetadataValue
-from dagster._core.definitions.metadata import MetadataUserInput
 from dagster._core.definitions.metadata.table import TableColumn, TableSchema
 
 from dagster_stitch.types import StitchOutput
@@ -43,7 +41,7 @@ def get_stitch_connector_url(
 
 
 def generate_materializations(
-    stitch_output: StitchOutput, asset_key_prefix: str
+    stitch_output: StitchOutput, asset_key_prefix: Sequence[str]
 ) -> Iterator[AssetMaterialization]:
     """Generate Dagster materializations for all of the tables (streams) in the Stitch output.
 
@@ -63,18 +61,18 @@ def generate_materializations(
         stream_name = stream_properties["name"]
 
         stream_url = get_stitch_connector_url(account_id, data_source_id, stream_id, stream_name)
-        # TODO: Asset key prefix diff?
 
         metadata = {"connector_url": MetadataValue.url(stream_url)}
-        table_columns = [
-            TableColumn(name=column, type="any") for column in sorted(stream_properties["schema"])
-        ]
+        table_columns = []
+
+        for column, column_type in stream_properties["schema"].items():
+            table_columns.append(TableColumn(name=column, type=column_type))
+
         metadata["table_schema"] = MetadataValue.table_schema(TableSchema(table_columns))
+        asset_key = AssetKey([*asset_key_prefix, data_source_name, stream_name])
 
         materialization = AssetMaterialization(
-            asset_key=(
-                f"{asset_key_prefix + '_' if asset_key_prefix else ''}{data_source_name}.{stream_name}"
-            ),
+            asset_key=asset_key,
             description=f"Table generated via Stitch sync: {data_source_name}.{stream_name}",
             metadata=metadata,
         )

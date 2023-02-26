@@ -1,4 +1,5 @@
 import time
+import json
 import logging
 from typing import Optional
 from urllib.parse import urljoin
@@ -20,6 +21,7 @@ DEFAULT_POLL_INTERVAL = 10.0
 API_BASE_URL = urljoin(STITCH_API_BASE, STITCH_API_VERSION)
 
 STITCH_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+STITCH_LOG_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S,%fZ"
 
 
 class StitchResource:
@@ -168,15 +170,23 @@ class StitchResource:
             Dict[str, Any]: The stream schema object.
         """
         schema = self.make_request("GET", f"sources/{data_source_id}/streams/{stream_id}")
-        schema_string = schema[
-            "schema"
-        ]  # TODO some string parsing (jsonparse?) to get the types, just validate with below
+        type_properties = json.loads(schema["schema"].replace("\\", "")).get("properties", {})
+
         return {
-            "schema": [
-                property["breadcrumb"][1]
+            "schema": {
+                property["breadcrumb"][1]: next(
+                    (
+                        property_type
+                        for property_type in type_properties.get(property["breadcrumb"][1], {}).get(
+                            "type", []
+                        )
+                        if property_type != "null"
+                    ),
+                    "any",
+                )
                 for property in schema["metadata"]
                 if "properties" in property["breadcrumb"] and property["metadata"]["selected"]
-            ],
+            },
         }
 
     def list_recent_loads(self, data_source_name: Optional[str] = None) -> dict:
@@ -187,7 +197,8 @@ class StitchResource:
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-last-loads-for-account
 
         Args:
-            data_source_id (Optional[int]): The ID of the data source to filter loads by.
+            data_source_id (Optional[int]): The ID of the data source to filter loads by. If specified,
+                only loads for the given data source will be returned.
 
         Returns:
             Dict[str, Dict[str, Dict[str, Any]]]: A nested dictionary mapping data source names to
@@ -219,17 +230,19 @@ class StitchResource:
             data_source_id (int): The ID of the data source to start a replication job for.
 
         Returns:
-            Dict[str, Any]: The response from the Stitch API, containing the job_id for the extract job.
+            Tuple[Dict[str, Any], datetime]: The response from the Stitch API, containing the job_id for the extract job,
+                and the time at which the job was started.
         """
+        extraction_start = datetime.utcnow()
         response = self.make_request("POST", f"sources/{data_source_id}/sync")
         if "error" in response:
             raise Failure(response["error"])
 
         self._log.info(
             f"Started replication job for data source {data_source_id} with job_id"
-            f" {response['job_name']}"
+            f" {response['job_name']} at {extraction_start}"
         )
-        return response
+        return response, extraction_start
 
     def get_extractions(self, data_source_id: Optional[int] = None) -> dict:
         """Lists all extractions for the account in array, optionally filtered by data source
@@ -238,7 +251,8 @@ class StitchResource:
         See https://www.stitchdata.com/docs/developers/stitch-connect/api#list-last-extractions
 
         Args:
-            data_source_id (Optional[int]): The ID of the data source to filter extractions by.
+            data_source_id (Optional[int]): The ID of the data source to filter extractions by. If specified,
+                only extractions for the given data source will be returned.
 
         Returns:
             Dict[str, Dict[str, Any]]: A dictionary mapping data source IDs to the extractions for that data source.
@@ -246,7 +260,6 @@ class StitchResource:
         extractions = self.make_request("GET", f"{self._account_id}/extractions")
         extraction_map = {extractions["source_id"]: extractions for extractions in extractions}
 
-        self._log.info(f"Extractions: {extraction_map}")
         if data_source_id is not None:
             return extraction_map.get(data_source_id, {})
         else:
@@ -262,7 +275,9 @@ class StitchResource:
             extraction_job_name (str): The name of the extraction job to get logs for.
 
         Returns:
-            Dict[str, int]: A dictionary mapping stream names to the number of records replicated for that stream.
+            Tuple[Dict[str, int], datetime]: A dictionary mapping stream names to the number of records replicated for
+                that stream, and the time at which the extraction job completed.
+
         """
         extraction_logs = self.make_request(
             "GET", f"{self._account_id}/extractions/{extraction_job_name}"
@@ -275,9 +290,14 @@ class StitchResource:
                 extraction_logs,
             )
         }
+
+        completed_timestamp = datetime.strptime(
+            extraction_logs.splitlines()[-1][:24], STITCH_LOG_DATETIME_FORMAT
+        )
+
         self._log.info(f"Found singer replications: {replications}")
 
-        return replications
+        return replications, completed_timestamp
 
     def start_replication_job_and_poll(
         self,
@@ -311,8 +331,7 @@ class StitchResource:
         if not source_metadata:
             raise Failure(f"Data source {data_source_id} not found")
 
-        extraction_start = datetime.utcnow()
-        replication_response = self.start_replication_job(data_source_id)
+        replication_response, extraction_start = self.start_replication_job(data_source_id)
 
         while True:
             extraction = self.get_extractions(data_source_id)
@@ -359,15 +378,15 @@ class StitchResource:
 
             time.sleep(poll_interval)
 
-        # Parse logs
-        stream_extractions = self.get_extraction_logs(extraction["job_name"])
-
-        # Load
+        # Parse logs, get expected loads
+        stream_extractions, load_start = self.get_extraction_logs(extraction["job_name"])
         streams = self.list_streams(data_source_id)
-        load_start = datetime.utcnow()
 
         expected_loads = {
-            stream: stream_extractions.get(streams[stream]["stream_name"], 0)
+            stream: {
+                "rows": stream_extractions.get(streams[stream]["stream_name"], 0),
+                "logs": set(),
+            }
             for stream in streams
             if streams[stream]["metadata"]["selected"]
         }
@@ -379,34 +398,44 @@ class StitchResource:
                 raise Failure(f"Load not found for data source {source_metadata['name']}")
 
             self._log.info(f"Polled loads for source {data_source_id}")
-
             loading_complete = True
-            for stream in streams:
-                if streams[stream]["metadata"]["selected"] and expected_loads[stream] > 0:
-                    if streams[stream]["stream_name"] not in loads:
-                        self._log.warning(
-                            f"Load for stream {streams[stream]['stream_name']} not yet found"
-                        )
-                        loading_complete = False
-                    elif loads[streams[stream]["stream_name"]]["error_state"]:
-                        self._log.warning(
-                            f"Load for stream {streams[stream]['stream_name']} failed:"
-                            f" {loads[streams[stream]['stream_name']]['error_state']['notification_data']['message']}"
-                        )
-                    elif (
-                        loads[streams[stream]["stream_name"]]["last_batch_loaded_at"] is None
-                        or datetime.strptime(
-                            loads[streams[stream]["stream_name"]]["last_batch_loaded_at"],
-                            STITCH_DATETIME_FORMAT,
-                        )
-                        < load_start
-                    ):
+            for stream_id in expected_loads:
+                if expected_loads[stream_id]["rows"] == 0:
+                    if "skipped" not in expected_loads[stream_id]["logs"]:
                         self._log.info(
-                            f"Load for stream {streams[stream]['stream_name']} not yet complete:"
-                            f" {loads[streams[stream]['stream_name']]['last_batch_loaded_at']} <"
-                            f" {load_start}"
+                            f"Skipping load for stream {streams[stream_id]['stream_name']}"
+                            " since it has no rows"
                         )
-                        loading_complete = False
+                        expected_loads[stream_id]["logs"].add("skipped")
+                    continue
+                if streams[stream_id]["stream_name"] not in loads:
+                    if "not_found" not in expected_loads[stream_id]["logs"]:
+                        self._log.warning(
+                            f"Load for stream {streams[stream_id]['stream_name']} not yet found"
+                        )
+                        expected_loads[stream_id]["logs"].add("not_found")
+                    loading_complete = False
+                elif loads[streams[stream_id]["stream_name"]]["error_state"]:
+                    if "failed" not in expected_loads[stream_id]["logs"]:
+                        self._log.warning(
+                            f"Load for stream {streams[stream_id]['stream_name']} failed:"
+                            f" {loads[streams[stream_id]['stream_name']]['error_state']['notification_data']['message']}"
+                        )
+                        expected_loads[stream_id]["logs"].add("failed")
+                elif (
+                    loads[streams[stream_id]["stream_name"]]["last_batch_loaded_at"] is None
+                    or datetime.strptime(
+                        loads[streams[stream_id]["stream_name"]]["last_batch_loaded_at"],
+                        STITCH_DATETIME_FORMAT,
+                    )
+                    < load_start
+                ):
+                    self._log.info(
+                        f"Load for stream {streams[stream_id]['stream_name']} not yet complete:"
+                        f" {loads[streams[stream_id]['stream_name']]['last_batch_loaded_at']} <"
+                        f" {load_start}"
+                    )
+                    loading_complete = False
 
             if not loading_complete:
                 if load_timeout and (datetime.utcnow() - load_start).total_seconds() > load_timeout:

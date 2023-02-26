@@ -1,4 +1,3 @@
-import pytest
 import responses
 
 from dagster import AssetKey, materialize_to_memory
@@ -10,7 +9,6 @@ from utils import (
     DATA_SOURCE_NAME,
     API_KEY,
     ACCOUNT_ID,
-    STREAM_ID,
     STREAM_NAME,
     mock_sync_requests,
 )
